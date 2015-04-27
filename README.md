@@ -1,4 +1,4 @@
-# logfile_exporter
+# logfile_exporter [![Build Status](https://travis-ci.org/quinox/logfile_exporter.svg?branch=master)](https://travis-ci.org/quinox/logfile_exporter)
 
 This project allows you to easily expose your own logfile statistics for [Prometheus](http://prometheus.io/). Some knowledge of Python is required.
 
