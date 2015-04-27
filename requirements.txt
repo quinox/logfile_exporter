@@ -1,0 +1,2 @@
+prometheus_client
+python-inotify==0.6-test
