@@ -387,6 +387,13 @@ def run_online(settings, logfiles):
 def run_testcases(handlers):
     total_ran = 0
     total_passed = 0
+
+    # Temp. disabling non-relevant metric collectors
+    def noop(*args, **kwargs):
+        return []
+    prometheus_client.PROCESS_COLLECTOR.collect_original = prometheus_client.PROCESS_COLLECTOR.collect
+    prometheus_client.PROCESS_COLLECTOR.collect = noop
+
     for handler in handlers.values():
         try:
             (ran, passed) = handler.run_testcases()
@@ -413,6 +420,10 @@ def run_testcases(handlers):
                         obj._metrics = {}
                 else:
                     logger.warning('Failed to reset %s.%s: unknown Prometheus type %s', handler, var, obj._type)
+
+    # Restoring non-relevant metric collectors
+    prometheus_client.PROCESS_COLLECTOR.collect = prometheus_client.PROCESS_COLLECTOR.collect_original
+    del prometheus_client.PROCESS_COLLECTOR.collect_original
 
     logger.info('Executed %s testcases in %s classes; %s failed.', total_ran, len(handlers), total_ran - total_passed)
     return (total_ran, total_passed)
