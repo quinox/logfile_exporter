@@ -425,8 +425,7 @@ def run(myfiles, configure_basic_logger=True):
     parser.add_argument('-q', '--quiet', action='count', default=0)
     parser.add_argument('-p', '--port', default=9123, type=int, help='Port to listen on')
     parser.add_argument('-o', '--offline', action='store_true', help='Feed the existing log files to the handlers and then quit.')
-    parser.add_argument('-x', '--skip-testcases', action='store_false', dest='run_testcases', help='Do not run testcases on startup.')
-    parser.add_argument('-X', '--die-on-testcase-failures', action='store_true', dest='die_on_testcase_failure')
+    parser.add_argument('-t', '--testcases', choices=['skip', 'strict', 'run', 'run-then-quit'], default='run')
 
     args = parser.parse_args()
 
@@ -438,13 +437,16 @@ def run(myfiles, configure_basic_logger=True):
             format='%(asctime)s %(levelname)-10s [%(name)s] %(message)s',
         )
 
-    if args.run_testcases:
+    if args.testcases in ['strict', 'run', 'run-then-quit']:
         # Removing duplicate handlers
         unique_handlers = {type(handler): handler for (filename, handler) in myfiles}
         logger.info('Running testcases')
         (ran, passed) = run_testcases(unique_handlers)
-        if args.die_on_testcase_failure and ran != passed:
-            logger.error('Not all testcases passed the test.')
+        if args.testcases == 'run-then-quit':
+            exit_code = 0 if ran == passed else 9
+            sys.exit(exit_code)
+        if args.testcases == 'strict' and ran != passed:
+            logger.error('Aborting program; not all testcases passed.')
             sys.exit(9)
 
     if args.offline:
