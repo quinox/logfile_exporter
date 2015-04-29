@@ -22,7 +22,7 @@ To expose your own logfiles statistics:
 1. Copy `program_example.py` to `program_acme.py`
 1. Subclass `AbstractLineHandler` as `AcmeLineHandler`
 1. Implement `def process(self, line)` inside your new class to extract the statistics you want
-1. Add your class to the `run` command at the bottom of the script
+1. Register your handler with a logfile on startup at the bottom of the script
 1. Activate the virtual in your terminal: `. virtual/bin/activate`
 1. Run `python program_acme.py`
 1. Visit http://localhost:9123
