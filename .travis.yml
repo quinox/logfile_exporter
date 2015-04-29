@@ -1,6 +1,10 @@
 language: python
 python:
-  - "2.7"
-install: "pip install -r requirements.txt"
-script: "python program_example.py --testcases run-then-quit"
-
+  - 2.7
+install: 
+  - pip install -r requirements.txt
+  - pip install coveralls
+script: 
+    coverage run program_example.py --testcases run-then-quit
+after_success:
+    coveralls

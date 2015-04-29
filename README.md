@@ -1,4 +1,4 @@
-# logfile_exporter [![Build Status](https://travis-ci.org/quinox/logfile_exporter.svg?branch=master)](https://travis-ci.org/quinox/logfile_exporter)
+# logfile_exporter [![Build Status](https://travis-ci.org/quinox/logfile_exporter.svg?branch=master)](https://travis-ci.org/quinox/logfile_exporter) [![Coverage Status](https://coveralls.io/repos/quinox/logfile_exporter/badge.svg)](https://coveralls.io/r/quinox/logfile_exporter)
 
 This project allows you to easily expose your own logfile statistics for [Prometheus](http://prometheus.io/). Some knowledge of Python is required.
 
@@ -28,5 +28,5 @@ To expose your own logfiles statistics:
 1. Visit http://localhost:9123
 
 # Similar projects
-
+ 
 * [Google's mtail](https://github.com/google/mtail)
