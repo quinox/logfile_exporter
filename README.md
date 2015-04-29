@@ -26,3 +26,7 @@ To expose your own logfiles statistics:
 1. Activate the virtual in your terminal: `. virtual/bin/activate`
 1. Run `python program_acme.py`
 1. Visit http://localhost:9123
+
+# Similar projects
+
+* [Google's mtail](https://github.com/google/mtail)
