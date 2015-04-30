@@ -5,7 +5,8 @@ install:
   - pip install -r requirements.txt
   - pip install coveralls
 script: 
-  - coverage run program_example.py --testcases run-then-quit
-  - coverage run tests.py
+  - coverage run --parallel-mode program_example.py --testcases run-then-quit
+  - coverage run --parallel-mode tests.py
 after_success:
-    coveralls
+  - coverage combine
+  - coveralls
