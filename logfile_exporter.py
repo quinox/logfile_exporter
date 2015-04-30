@@ -132,7 +132,7 @@ class FileStats(object):
     def disable(self):
         try:
             self._filehandle.close()
-        except IOError:
+        except (IOError, AttributeError):
             pass
         self.watchdescriptor = None
         self._filehandle = None
@@ -249,6 +249,10 @@ class MyWatcher(Watcher):
                         handler(event)
 
     def process_moved_from(self, event):
+        if event.fullpath not in self.filestats:
+            logger.debug('Ignoring unknown file %s.', event.fullpath)
+            return
+
         logger.debug('DELETE/MOVED_FROM Event: %s', event.fullpath)
         logger.debug('Removing inotify from %s', event.fullpath)
         try:
@@ -259,6 +263,10 @@ class MyWatcher(Watcher):
     process_delete = process_moved_from
 
     def process_moved_to(self, event):
+        if event.fullpath not in self.filestats:
+            logger.debug('Ignoring unknown file %s.', event.fullpath)
+            return
+
         logger.debug('MOVED_TO Event: %s', event.fullpath)
         logger.debug('Adding inotify to %s', event.fullpath)
         self.add(event.fullpath)  # (re)start monitoring with inotify
@@ -267,6 +275,7 @@ class MyWatcher(Watcher):
         logger.debug('CREATE Event: %s', event.fullpath)
         logger.debug('Adding inotify to %s', event.fullpath)
         self.add(event.fullpath, from_beginning_of_file=True)  # (re)start monitoring with inotify
+        self.process_modify(event)
 
     def process_modify(self, event):
         filestats = self.filestats[event.fullpath]
