@@ -376,9 +376,11 @@ def run_online(settings, logfiles):
 
     pollcount = Counter('pollcount', 'The number of poll events processed by logfile_exporter.')
 
-    while True:
+    loopcount = 0
+    while settings.max_polls <= 0 or loopcount < settings.max_polls:
         events = poller.poll(POLL_TIMEOUT)
         pollcount.inc()
+        loopcount += 1
 
         for fd, event in events:
             if fd == http_server.fileno():
@@ -399,6 +401,7 @@ def run(myfiles, configure_basic_logger=True):
     parser.add_argument('-p', '--port', default=9123, type=int, help='Port to listen on')
     parser.add_argument('-o', '--offline', action='store_true', help='Feed the existing log files to the handlers and then quit.')
     parser.add_argument('-t', '--testcases', choices=['skip', 'strict', 'run', 'run-then-quit'], default='run')
+    parser.add_argument('--max-polls', default=-1, type=int, help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
