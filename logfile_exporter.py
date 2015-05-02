@@ -105,6 +105,24 @@ class FileStats(object):
         self.unprocessed = ''
 
 
+class CloudedEvent(inotify.watcher.Event):
+    '''Wrapper class to protect against segfaults.
+
+    python-inotify can segfault when requesting the __repr__ of certain events.
+    This wrapper will obscure __repr__ in these cases to prevent segfaults.
+
+    https://bitbucket.org/JanKanis/python-inotify/issue/5/possible-segfault-in-_inotifyc-read_events
+    https://bitbucket.org/JanKanis/python-inotify/issue/8/segfault-watching-directory
+    https://bitbucket.org/JanKanis/python-inotify/issue/10/str-or-repr-of-event-results-in-core-dump
+    '''
+
+    def __repr__(self):
+        if self.raw.mask in [64, 128, 256, 512]:
+            return 'Event(clouded)'
+        else:
+            return super(CloudedEvent, self).__repr__()
+
+
 class DirStats(object):
 
     def __init__(self, filenames):
@@ -202,8 +220,11 @@ class MyWatcher(Watcher):
         stats.filehandle = handle
         stats.unprocessed = ''
 
+    def read(self, bufsize=None):
+        return [CloudedEvent(event.raw, event.path) for event in super(MyWatcher, self).read(bufsize)]
+
     def process_events(self, bufsize=None):
-        events = super(MyWatcher, self).read(bufsize)
+        events = self.read(bufsize)
         for event in events:
             for event_type in self._event_props:
                 if getattr(event, event_type):
@@ -288,7 +309,18 @@ class MyWatcher(Watcher):
 
     def process_ignored(self, event):
         logger.debug('inotify reported it is no longer monitoring %s', event.fullpath)
-        self.filestats[event.fullpath].disable()
+        try:
+            filestats = self.filestats[event.fullpath]
+        except KeyError:
+            logger.debug('inotify reported it is no longer monitoring unknown %s', event.fullpath)
+        finally:
+            filestats.disable()
+            # If the path was in self.filestats we're interested in it...
+            if os.path.exists(event.fullpath):
+                logger.debug('inotify reported its no longer monitoring %s, readding it.', event.fullpath)
+                self.add(event.fullpath)
+            else:
+                logger.debug('inotify reported its no longer monitoring %s.', event.fullpath)
 
 
 class MoreSilentMetricsHandler(MetricsHandler):

@@ -143,6 +143,16 @@ def load_tests(loader, standard_tests, _pattern):
 
 class TestWatcher(unittest.TestCase):
 
+    '''Tests for an inotify watcher.
+
+    Inotify is based on inodes, but as a user we're only interested in
+    filepahs. while the inode stays alive its path can change.  The reverse
+    also happens, the underlying inode of a path can change.
+
+    These tests should validate that the watcher is working on the filepaths,
+    not on the iddes.
+    '''
+
     POLL_TIMEOUT = 10  # in ms
 
     def setUp(self):
@@ -159,6 +169,25 @@ class TestWatcher(unittest.TestCase):
 
         while self.poller.poll(self.POLL_TIMEOUT):
             self.watcher.process_events()
+
+    def test_python_inotify_segfault_protection(self):
+        # python-inotify segfaults when you print certain events
+
+        syslog = join(self.folder, 'syslog')
+        self.watcher.add_handler(syslog, self.recorder)
+
+        syslog = join(self.folder, 'syslog')
+        with open(syslog, 'w') as handle:
+            handle.write('12:34 First entry\n')
+
+        shutil.move(syslog, syslog + '.1')
+        os.unlink(syslog + '.1')
+
+        while self.poller.poll(self.POLL_TIMEOUT):
+            events = self.watcher.read()
+            for event in events:
+                repr(event)
+
 
     def test_read_on_existing_file(self):
         syslog = join(self.folder, 'syslog')
@@ -326,11 +355,11 @@ class TestWatcher(unittest.TestCase):
             handle.flush()
 
             self.poll()
-
             self.assertEqual(self.recorder.lines, ['12:35 Second entry'])
 
         shutil.move(syslog, syslog1)
         self.poll()
+        self.assertEqual(self.recorder.lines, ['12:35 Second entry'])
 
         with open(syslog1, 'a') as handle:
 
@@ -338,13 +367,10 @@ class TestWatcher(unittest.TestCase):
             handle.flush()
 
             self.poll()
-
             self.assertEqual(self.recorder.lines, ['12:35 Second entry'])
 
-        shutil.move(syslog1, syslog)
-        self.poll()
-
-        with open(syslog, 'a') as handle:
+            shutil.move(syslog1, syslog)
+            self.poll()
 
             handle.write('12:37 Fourth entry\n')
             handle.flush()
