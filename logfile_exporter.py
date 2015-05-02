@@ -31,17 +31,28 @@ FILE_EVENTS_TO_WATCH = inotify.IN_MODIFY
 DIR_EVENTS_TO_WATCH = inotify.IN_MOVED_TO | inotify.IN_MOVED_FROM | inotify.IN_DELETE | inotify.IN_CREATE
 
 
+class MetaAbstractLineHandler(abc.ABCMeta):
+
+    '''Keep track of all subclassed versions'''
+
+    children = []
+
+    def __init__(cls, name, bases, dct):
+        cls.children.append(cls)
+        super(MetaAbstractLineHandler, cls).__init__(name, bases, dct)
+
+
 # pylint: disable=R0921
 class AbstractLineHandler(object):
     '''Base class for building your own LineHandler
 
     After subclassing implement your own process method'''
 
-    __metaclass__ = abc.ABCMeta
+    __metaclass__ = MetaAbstractLineHandler
 
-    testcases = None
-    testcase_args = None
-    testcase_kwargs = None
+    testcases = None  # None = throw warning; False = no testcases; otherwise iterable with testcases
+    testcase_args = None  # Used to instantiate this class for a testcase
+    testcase_kwargs = None  # Used to instantiate this class for a testcase
 
     @abc.abstractmethod
     def process(self, line):
@@ -54,51 +65,6 @@ class AbstractLineHandler(object):
         except AttributeError:
             self._logger = logging.getLogger(__name__ + '.' + self.__class__.__name__)
             return self._logger
-
-    @classmethod
-    def run_testcases(cls):
-        if cls.testcases is None:
-            logger.warning('No testcases found in %s.', cls)
-            return (0, 0)
-
-        try:
-            args = []
-            if cls.testcase_args is not None:
-                args = cls.testcase_args
-            kwargs = {}
-            if cls.testcase_kwargs is not None:
-                kwargs = cls.testcase_kwargs
-            instance = cls(*args, **kwargs)
-        except Exception as ex:
-            logger.warning('Could not instantiate %s for running testcases: %s', cls, ex)
-            return
-
-        passed = 0
-        for (testcase_number, testcase) in enumerate(cls.testcases, start=1):
-            for line in testcase['input'].splitlines():
-                instance.process(line)
-
-            result = []
-            for metric in prometheus_client.REGISTRY.collect():
-                for (name, tags, value) in metric._samples:
-                    result.append((
-                        name,
-                        sorted(tuple(tags.iteritems())),
-                        value,
-                    ))
-            result.sort()
-
-            expected = testcase.get('expected', [])
-            for (name, tags, value) in expected:
-                tags.sort()
-            expected.sort()
-
-            if result != expected:
-                instance.logger.warning('Failed testcase %s, expected:\n%s\nGot:\n%s', testcase_number, expected, result)
-            else:
-                instance.logger.info('Passed testcase %s.', testcase_number)
-                passed += 1
-        return (len(cls.testcases), passed)
 
 
 class FileStats(object):
@@ -393,51 +359,6 @@ def run_online(settings, logfiles):
     logger.info('Terminating program.')
 
 
-def run_testcases(handlers):
-    total_ran = 0
-    total_passed = 0
-
-    # Temp. disabling non-relevant metric collectors
-    def noop(*args, **kwargs):
-        return []
-    prometheus_client.PROCESS_COLLECTOR.collect_original = prometheus_client.PROCESS_COLLECTOR.collect
-    prometheus_client.PROCESS_COLLECTOR.collect = noop
-
-    for handler in handlers.values():
-        try:
-            (ran, passed) = handler.run_testcases()
-            total_ran += ran
-            total_passed += passed
-        except Exception:
-            logger.exception('Failed to run testcases for %s', handler)
-
-        # There's no easy way to reset Prometheus's Metrics:
-        # - Changing prometheus_client.REGISTRY doesn't work because
-        #   the Metrics are already registered
-        #
-        # For now we'll simply reset everything by hand
-        for var in dir(handler):
-            if var.startswith('_'):
-                continue
-            obj = getattr(handler, var)
-            if isinstance(obj, prometheus_client._LabelWrapper):
-                if obj._type == 'counter':
-                    with obj._lock:
-                        obj._metrics = {}
-                elif obj._type == 'gauge':
-                    with obj._lock:
-                        obj._metrics = {}
-                else:
-                    logger.warning('Failed to reset %s.%s: unknown Prometheus type %s', handler, var, obj._type)
-
-    # Restoring non-relevant metric collectors
-    prometheus_client.PROCESS_COLLECTOR.collect = prometheus_client.PROCESS_COLLECTOR.collect_original
-    del prometheus_client.PROCESS_COLLECTOR.collect_original
-
-    logger.info('Executed %s testcases in %s classes; %s failed.', total_ran, len(handlers), total_ran - total_passed)
-    return (total_ran, total_passed)
-
-
 def run(myfiles, configure_basic_logger=True):
 
     parser = argparse.ArgumentParser()
@@ -458,14 +379,38 @@ def run(myfiles, configure_basic_logger=True):
         )
 
     if args.testcases in ['strict', 'run', 'run-then-quit']:
+        import unittest
+        from tests import load_tests_from_handler
+
         # Removing duplicate handlers
         unique_handlers = {type(handler): handler for (filename, handler) in myfiles}
         logger.info('Running testcases')
-        (ran, passed) = run_testcases(unique_handlers)
+
+        ran = 0
+        failures = 0
+        errors = 0
+
+        for (handler_type, handler) in unique_handlers.iteritems():
+            tests = load_tests_from_handler(unittest.defaultTestLoader, handler_type)
+            if tests:
+                result = tests(unittest.result.TestResult())
+                ran += result.testsRun
+                failures += len(result.failures)
+                errors += len(result.errors)
+                logger.info('{} executed {} testcases: {} failures, {} errors.'.format(
+                    handler_type,
+                    result.testsRun,
+                    len(result.failures),
+                    len(result.errors),
+                ))
+
+            else:
+                logger.info('{} has no testcases.'.format(handler_type))
+
         if args.testcases == 'run-then-quit':
-            exit_code = 0 if ran == passed else 9
+            exit_code = 0 if max(failures, errors) == 0 else 9
             sys.exit(exit_code)
-        if args.testcases == 'strict' and ran != passed:
+        if args.testcases == 'strict' and max(failures, errors) > 0:
             logger.error('Aborting program; not all testcases passed.')
             sys.exit(9)
 

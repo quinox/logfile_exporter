@@ -2,18 +2,31 @@
 
 # Python
 from os.path import join
+import imp
+import logging
 import os
 import select
 import shutil
 import tempfile
 import unittest
 
+# 3rd part
+import prometheus_client
+
 # Local
 from logfile_exporter import AbstractLineHandler
+from logfile_exporter import MetaAbstractLineHandler
 from logfile_exporter import MyWatcher
 
 
+logger = logging.getLogger('logfile_exporter.tests')
+
+
 class RecordingAbstractLineHandler(AbstractLineHandler):
+
+    '''LineHandler that keeps track of all process() calls'''
+
+    testcases = False
 
     def __init__(self, *args, **kwargs):
         super(RecordingAbstractLineHandler, self).__init__(*args, **kwargs)
@@ -21,6 +34,111 @@ class RecordingAbstractLineHandler(AbstractLineHandler):
 
     def process(self, line):
         self.lines.append(line)
+
+
+def noop_collect(*args, **kwargs):
+    return []
+
+
+class BaseTestLineHandler(unittest.TestCase):
+    def setUp(self):
+        # Disabling auto collectors
+        self._PROCESS_COLLECTOR_collect = prometheus_client.PROCESS_COLLECTOR.collect
+        prometheus_client.PROCESS_COLLECTOR.collect = noop_collect
+
+    def tearDown(self):
+        # Resetting all metrics
+        for metric in prometheus_client.REGISTRY._collectors:
+            try:
+                type_ = metric._type
+            except AttributeError:
+                # Special metrics such as ProcessCollector. Should be dealt
+                # with on a case-by-base basis
+                continue
+
+            if type_ == 'counter':
+                with metric._lock:
+                    metric._metrics = {}
+            elif type_ == 'gauge':
+                with metric._lock:
+                    metric._metrics = {}
+            else:
+                logger.warning('Failed to reset %s.%s: unknown Prometheus type %s', handler, var, obj._type)
+
+        # Re-enabling auto collectors
+        prometheus_client.PROCESS_COLLECTOR.collect = self._PROCESS_COLLECTOR_collect
+
+    def _test(self, testcase):
+        for line in testcase['input'].splitlines():
+            self.instance.process(line)
+
+        result = []
+        for metric in prometheus_client.REGISTRY.collect():
+            for (name, tags, value) in metric._samples:
+                result.append((
+                    name,
+                    sorted(tuple(tags.iteritems())),
+                    value,
+                ))
+        result.sort()
+
+        expected = testcase.get('expected', [])
+        for (name, tags, value) in expected:
+            tags.sort()
+        expected.sort()
+
+        self.assertEqual(expected, result)
+
+
+def load_tests_from_handler(loader, handler):
+    '''Return all testcases for a handler'''
+
+    if handler.testcases is None:
+        if handler != AbstractLineHandler:
+            logger.warning('Handler %s has no testcases.', handler)
+        return []
+
+    if handler.testcases is False:
+        return []
+
+    # New class per handler
+    class Derived(BaseTestLineHandler):
+        pass
+    # Instantiating handler
+    args = []
+    if handler.testcase_args is not None:
+        args = handler.testcase_args
+    kwargs = {}
+    if handler.testcase_kwargs is not None:
+        kwargs = handler.testcase_kwargs
+    Derived.instance = handler(*args, **kwargs)
+
+    # Setting up testcases
+    for (index, testcase) in enumerate(handler.testcases, start=1):
+        method_name = 'test_testcase_{}'.format(index)
+        setattr(Derived, method_name, lambda self, testcase=testcase: self._test(testcase))
+
+    tests = loader.loadTestsFromTestCase(Derived)
+
+    return tests
+
+
+def load_tests(loader, standard_tests, _pattern):
+    suite = unittest.TestSuite()
+
+    suite.addTests(standard_tests)
+
+    # Loading all available programs to allow subclasses of AbstractLineHandler
+    # to register themselves with MetaAbstractLineHandler
+    for filename in os.listdir(os.path.dirname(os.path.abspath(__file__))):
+        (filename_base, _sep, extention) = filename.rpartition('.')
+        if filename_base.startswith('program_') and extention == 'py':
+            imp.load_source(filename_base, filename)
+
+    for handler in MetaAbstractLineHandler.children:
+        suite.addTests(load_tests_from_handler(loader, handler))
+
+    return suite
 
 
 class TestWatcher(unittest.TestCase):
@@ -41,7 +159,6 @@ class TestWatcher(unittest.TestCase):
 
         while self.poller.poll(self.POLL_TIMEOUT):
             self.watcher.process_events()
-
 
     def test_read_on_existing_file(self):
         syslog = join(self.folder, 'syslog')
@@ -222,7 +339,6 @@ class TestWatcher(unittest.TestCase):
 
             self.poll()
 
-
             self.assertEqual(self.recorder.lines, ['12:35 Second entry'])
 
         shutil.move(syslog1, syslog)
@@ -239,4 +355,8 @@ class TestWatcher(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        datefmt='%Y-%m-%d %H:%M:%S',
+        format='%(asctime)s %(levelname)-10s [%(name)s] %(message)s',
+    )
     unittest.main()

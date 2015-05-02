@@ -77,7 +77,7 @@ class PrintingLineHandler(AbstractLineHandler):
     This class doesn't set any Prometheus metrics; normally you should (why
     else use this script?)'''
 
-    testcases = None  # Since we don't do anything with Prometheus we'll skip the testcases
+    testcases = False  # Since we don't do anything with Prometheus we'll skip the testcases
 
     max_line_length = 100
 
