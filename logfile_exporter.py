@@ -429,18 +429,28 @@ def run(myfiles, configure_basic_logger=True):
             tests = load_tests_from_handler(unittest.defaultTestLoader, handler_type)
             if tests:
                 result = tests(unittest.result.TestResult())
+                failure_count = len(result.failures)
+                error_count = len(result.errors)
+
                 ran += result.testsRun
-                failures += len(result.failures)
-                errors += len(result.errors)
-                logger.info('{} executed {} testcases: {} failures, {} errors.'.format(
+                failures += failure_count
+                errors += error_count
+                logger_func = logger.info
+                if failure_count or error_count:
+                    logger_func = logger.warning
+
+                logger_func('{} executed {} testcases: {} failures, {} errors.'.format(
                     handler_type,
                     result.testsRun,
-                    len(result.failures),
-                    len(result.errors),
+                    failure_count,
+                    error_count,
                 ))
 
             else:
-                logger.info('{} has no testcases.'.format(handler_type))
+                if handler_type.testcases is False:
+                    logger.info('{} has no testcases.'.format(handler_type))
+                else:
+                    logger.warning('{} has no testcases.'.format(handler_type))
 
         if args.testcases == 'run-then-quit':
             exit_code = 0 if max(failures, errors) == 0 else 9
