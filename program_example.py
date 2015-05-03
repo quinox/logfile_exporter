@@ -19,7 +19,7 @@ class LineCounter(AbstractLineHandler):
     result in weird behaviour because running testcases will make new classes.
     '''
 
-    linecounter = Counter('linecount', 'Nr. of analyzed lines', ['filename'])
+    linecounter = Counter('linecount', 'Nr. of analyzed lines', ['filename'])  # noqa
 
     testcases = [
         {
@@ -46,7 +46,7 @@ Line three''',
 class LetterCounter(AbstractLineHandler):
     '''Example LineHandler that counts the number of letters'''
 
-    lettercounter = Counter('lettercount', 'Nr. of letters in the log files', ['filename', 'lettertype'])
+    lettercounter = Counter('lettercount', 'Nr. of letters in the log files', ['filename', 'lettertype'])  # noqa
 
     testcases = [
         {

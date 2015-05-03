@@ -374,7 +374,7 @@ def run_online(settings, logfiles):
     for (filename, handler) in logfiles:
         filesystem_server.add_handler(filename, handler)
 
-    pollcount = Counter('pollcount', 'The number of poll events processed by logfile_exporter.')
+    pollcount = Counter('pollcount', 'The number of poll events processed by logfile_exporter.')  # noqa
 
     loopcount = 0
     while settings.max_polls <= 0 or loopcount < settings.max_polls:
