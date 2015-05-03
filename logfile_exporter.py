@@ -2,7 +2,6 @@
 
 # Python
 from BaseHTTPServer import HTTPServer
-from datetime import date
 import abc
 import argparse
 import codecs
@@ -17,7 +16,6 @@ from inotify.watcher import Watcher
 from prometheus_client import Counter
 from prometheus_client import MetricsHandler
 import inotify
-import prometheus_client
 
 # TODO: Implement offline mode
 # TODO: Support other inotify modules?
@@ -382,7 +380,7 @@ def run_online(settings, logfiles):
         pollcount.inc()
         loopcount += 1
 
-        for fd, event in events:
+        for fd, _event in events:
             if fd == http_server.fileno():
                 http_server._handle_request_noblock()
             elif fd == filesystem_server.fileno():
@@ -418,39 +416,39 @@ def run(myfiles, configure_basic_logger=True):
         from tests import load_tests_from_handler
 
         # Removing duplicate handlers
-        unique_handlers = {type(handler): handler for (filename, handler) in myfiles}
+        unique_handlers = set([type(handler) for (_filename, handler) in myfiles])
         logger.info('Running testcases')
 
-        ran = 0
         failures = 0
         errors = 0
 
-        for (handler_type, handler) in unique_handlers.iteritems():
+        for handler_type in unique_handlers:
             tests = load_tests_from_handler(unittest.defaultTestLoader, handler_type)
             if tests:
                 result = tests(unittest.result.TestResult())
                 failure_count = len(result.failures)
                 error_count = len(result.errors)
 
-                ran += result.testsRun
                 failures += failure_count
                 errors += error_count
+
                 logger_func = logger.info
                 if failure_count or error_count:
                     logger_func = logger.warning
 
-                logger_func('{} executed {} testcases: {} failures, {} errors.'.format(
+                logger_func(
+                    '%s executed %s testcases: %s failures, %s errors.',
                     handler_type,
                     result.testsRun,
                     failure_count,
                     error_count,
-                ))
+                )
 
             else:
                 if handler_type.testcases is False:
-                    logger.info('{} has no testcases.'.format(handler_type))
+                    logger.info('%s has no testcases.', handler_type)
                 else:
-                    logger.warning('{} has no testcases.'.format(handler_type))
+                    logger.warning('%s has no testcases.', handler_type)
 
         if args.testcases == 'run-then-quit':
             exit_code = 0 if max(failures, errors) == 0 else 9
