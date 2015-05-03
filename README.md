@@ -1,4 +1,6 @@
-# logfile_exporter [![Build Status](https://travis-ci.org/quinox/logfile_exporter.svg?branch=master)](https://travis-ci.org/quinox/logfile_exporter) [![Coverage Status](https://coveralls.io/repos/quinox/logfile_exporter/badge.svg)](https://coveralls.io/r/quinox/logfile_exporter)
+# logfile_exporter 
+
+[![Build Status](https://travis-ci.org/quinox/logfile_exporter.svg?branch=master)](https://travis-ci.org/quinox/logfile_exporter) [![Coverage Status](https://coveralls.io/repos/quinox/logfile_exporter/badge.svg)](https://coveralls.io/r/quinox/logfile_exporter) [![Code Health](https://landscape.io/github/quinox/logfile_exporter/master/landscape.svg)](https://landscape.io/github/quinox/logfile_exporter/master)
 
 This project allows you to easily expose your own logfile statistics for [Prometheus](http://prometheus.io/). Some knowledge of Python is required.
 
