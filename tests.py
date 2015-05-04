@@ -188,7 +188,6 @@ class TestWatcher(unittest.TestCase):
             for event in events:
                 repr(event)
 
-
     def test_read_on_existing_file(self):
         syslog = join(self.folder, 'syslog')
         with open(syslog, 'w') as handle:
@@ -378,6 +377,26 @@ class TestWatcher(unittest.TestCase):
             self.poll()
 
             self.assertEqual(self.recorder.lines, ['12:35 Second entry', '12:37 Fourth entry'])
+
+    def test_ignore_untracked(self):
+        syslog = join(self.folder, 'syslog')
+        self.watcher.add_handler(syslog, self.recorder)
+
+        messageslog = join(self.folder, 'messages')
+
+        with open(syslog, 'w') as handle:
+
+            handle.write('12:34 First entry\n12:35 Second entry\n')
+            handle.flush()
+
+        with open(messageslog, 'w') as handle:
+
+            handle.write('12:36 Third entry\n')
+            handle.flush()
+
+        self.poll()
+
+        self.assertEqual(self.recorder.lines, ['12:34 First entry', '12:35 Second entry'])
 
 
 if __name__ == '__main__':

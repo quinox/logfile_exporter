@@ -130,6 +130,15 @@ class DirStats(object):
         return '{}(filenames={})'.format(self.__class__.__name__, self.filenames)
 
 
+def ignore_untracked(func):
+    def wrapped(self, event, *args, **kwargs):
+        if event.fullpath not in self.filestats:
+            logger.debug('Ignoring unknown file %s.', event.fullpath)
+            return
+        return func(self, event, *args, **kwargs)
+    return wrapped
+
+
 class MyWatcher(Watcher):
     '''An inotify watcher meant for tracking log files
 
@@ -231,13 +240,11 @@ class MyWatcher(Watcher):
                     except AttributeError:
                         logger.debug('No handler for %s', event_type)
                     else:
+                        logger.debug('Calling handler for %s', event_type)
                         handler(event)
 
+    @ignore_untracked
     def process_moved_from(self, event):
-        if event.fullpath not in self.filestats:
-            logger.debug('Ignoring unknown file %s.', event.fullpath)
-            return
-
         logger.debug('DELETE/MOVED_FROM Event: %s', event.fullpath)
         logger.debug('Removing inotify from %s', event.fullpath)
         try:
@@ -245,17 +252,16 @@ class MyWatcher(Watcher):
         except inotify.watcher.InotifyWatcherException:
             # Apparently we weren't even watching that file
             self.process_ignored(event)
+
     process_delete = process_moved_from
 
+    @ignore_untracked
     def process_moved_to(self, event):
-        if event.fullpath not in self.filestats:
-            logger.debug('Ignoring unknown file %s.', event.fullpath)
-            return
-
         logger.debug('MOVED_TO Event: %s', event.fullpath)
         logger.debug('Adding inotify to %s', event.fullpath)
         self.add(event.fullpath)  # (re)start monitoring with inotify
 
+    @ignore_untracked
     def process_create(self, event):
         logger.debug('CREATE Event: %s', event.fullpath)
         logger.debug('Adding inotify to %s', event.fullpath)
