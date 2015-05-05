@@ -107,7 +107,8 @@ class CloudedEvent(inotify.watcher.Event):
     '''Wrapper class to protect against segfaults.
 
     python-inotify can segfault when requesting the __repr__ of certain events.
-    This wrapper will obscure __repr__ in these cases to prevent segfaults.
+    To prevent this we will override this method with a less useful but also
+    non-crashing version.
 
     https://bitbucket.org/JanKanis/python-inotify/issue/5/possible-segfault-in-_inotifyc-read_events
     https://bitbucket.org/JanKanis/python-inotify/issue/8/segfault-watching-directory
@@ -115,10 +116,7 @@ class CloudedEvent(inotify.watcher.Event):
     '''
 
     def __repr__(self):
-        if self.raw.mask in [64, 128, 256, 512]:
-            return 'Event(clouded)'
-        else:
-            return super(CloudedEvent, self).__repr__()
+        return 'CloudedEvent(wd={0.wd}, fullpath={0.fullpath}, mask={0.mask}, cookie={0.cookie})'.format(self)
 
 
 class DirStats(object):
