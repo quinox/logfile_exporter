@@ -398,6 +398,39 @@ class TestWatcher(unittest.TestCase):
 
         self.assertEqual(self.recorder.lines, ['12:34 First entry', '12:35 Second entry'])
 
+    def test_partial_write(self):
+        syslog = join(self.folder, 'syslog')
+        self.watcher.add_handler(syslog, self.recorder)
+
+        messageslog = join(self.folder, 'messages')
+
+        with open(syslog, 'w') as handle:
+
+            handle.write('12:34 First')
+            handle.flush()
+
+            self.poll()
+
+            self.assertEqual(self.recorder.lines, [])
+
+            handle.write(' entr')
+            handle.flush()
+
+            self.assertEqual(self.recorder.lines, [])
+
+            handle.write('y\n12:35 Sec')
+            handle.flush()
+
+            self.poll()
+
+            self.assertEqual(self.recorder.lines, ['12:34 First entry'])
+
+            handle.write('ond entry\n')
+            handle.flush()
+
+            self.poll()
+            self.assertEqual(self.recorder.lines, ['12:34 First entry', '12:35 Second entry'])
+
 
 if __name__ == '__main__':
     logging.basicConfig(
