@@ -395,6 +395,48 @@ def run_online(settings, logfiles):
     logger.info('Terminating program.')
 
 
+def run_testcases(handlers):
+    import unittest
+    from tests import load_tests_from_handler
+
+    # Removing duplicate handlers
+    unique_handlers = set([type(handler) for handler in handlers])
+    logger.info('Running testcases')
+
+    failures = 0
+    errors = 0
+
+    for handler_type in unique_handlers:
+        tests = load_tests_from_handler(unittest.defaultTestLoader, handler_type)
+        if tests:
+            result = tests(unittest.result.TestResult())
+            failure_count = len(result.failures)
+            error_count = len(result.errors)
+
+            failures += failure_count
+            errors += error_count
+
+            logger_func = logger.info
+            if failure_count or error_count:
+                logger_func = logger.warning
+
+            logger_func(
+                '%s executed %s testcases: %s failures, %s errors.',
+                handler_type,
+                result.testsRun,
+                failure_count,
+                error_count,
+            )
+
+        else:
+            if handler_type.testcases is False:
+                logger.info('%s has no testcases.', handler_type)
+            else:
+                logger.warning('%s has no testcases.', handler_type)
+
+    return (failures, errors)
+
+
 def run(myfiles, configure_basic_logger=True):
 
     parser = argparse.ArgumentParser()
@@ -416,43 +458,7 @@ def run(myfiles, configure_basic_logger=True):
         )
 
     if args.testcases in ['strict', 'run', 'run-then-quit']:
-        import unittest
-        from tests import load_tests_from_handler
-
-        # Removing duplicate handlers
-        unique_handlers = set([type(handler) for (_filename, handler) in myfiles])
-        logger.info('Running testcases')
-
-        failures = 0
-        errors = 0
-
-        for handler_type in unique_handlers:
-            tests = load_tests_from_handler(unittest.defaultTestLoader, handler_type)
-            if tests:
-                result = tests(unittest.result.TestResult())
-                failure_count = len(result.failures)
-                error_count = len(result.errors)
-
-                failures += failure_count
-                errors += error_count
-
-                logger_func = logger.info
-                if failure_count or error_count:
-                    logger_func = logger.warning
-
-                logger_func(
-                    '%s executed %s testcases: %s failures, %s errors.',
-                    handler_type,
-                    result.testsRun,
-                    failure_count,
-                    error_count,
-                )
-
-            else:
-                if handler_type.testcases is False:
-                    logger.info('%s has no testcases.', handler_type)
-                else:
-                    logger.warning('%s has no testcases.', handler_type)
+        (failures, errors) = run_testcases([handler for (_filename, handler) in myfiles])
 
         if args.testcases == 'run-then-quit':
             exit_code = 0 if max(failures, errors) == 0 else 9
